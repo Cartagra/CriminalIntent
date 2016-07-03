@@ -1,5 +1,6 @@
 package com.bignerdranch.android.criminalintent;
 
+import android.app.Activity;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -14,21 +15,37 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 
+import java.util.UUID;
+
 /**
  * @author Ken
  * @version 1.0.0
- *          date 2016/6/28
  */
 public class CrimeFragment extends Fragment {
+    private static final String ARG_CRIME_ID = "crime_id";
     private Crime mCrime;
     private EditText mTitleEditText;
     private Button mDateButton;
     private CheckBox mSolvedCheckBox;
 
+    public static CrimeFragment newInstance(UUID crimeId) {
+        Bundle args = new Bundle();
+        args.putSerializable(ARG_CRIME_ID, crimeId);
+
+        CrimeFragment fragment = new CrimeFragment();
+        fragment.setArguments(args);
+        return fragment;
+    }
+
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mCrime = new Crime();
+        UUID uuid = (UUID) getArguments().getSerializable(ARG_CRIME_ID);
+        mCrime = CrimeLab.get(getActivity()).getCrime(uuid);
+    }
+
+    public void returnResult() {
+        getActivity().setResult(Activity.RESULT_OK, null);
     }
 
     @Nullable
@@ -55,7 +72,6 @@ public class CrimeFragment extends Fragment {
 
             }
         });
-        mDateButton.setText(DateFormat.format("yyyy年MM月dd HH时mm分ss秒", mCrime.getDate()));
         mDateButton.setEnabled(false);
         mSolvedCheckBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -64,6 +80,9 @@ public class CrimeFragment extends Fragment {
             }
         });
 
+        mTitleEditText.setText(mCrime.getTitle());
+        mSolvedCheckBox.setChecked(mCrime.isSolved());
+        mDateButton.setText(DateFormat.format("yyyy年MM月dd HH时mm分ss秒", mCrime.getDate()));
         return v;
     }
 }

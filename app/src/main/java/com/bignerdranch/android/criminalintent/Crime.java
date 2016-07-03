@@ -6,7 +6,6 @@ import java.util.UUID;
 /**
  * @author Ken
  * @version 1.0.0
- *          date 2016/6/28
  */
 public class Crime {
     private UUID mId;
