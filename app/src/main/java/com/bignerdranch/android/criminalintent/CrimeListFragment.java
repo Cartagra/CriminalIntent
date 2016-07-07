@@ -9,15 +9,18 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.text.format.DateFormat;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.TextView;
 
+import java.text.SimpleDateFormat;
 import java.util.List;
 
 /**
@@ -31,6 +34,8 @@ public class CrimeListFragment extends Fragment {
 
 
     private RecyclerView mCrimeRecyclerView;
+    private View mNoCrimeView;
+    private Button mAddCrimeButton;
     private CrimeAdapter mAdapter;
     private boolean mSubtitleVisible;
 
@@ -46,6 +51,15 @@ public class CrimeListFragment extends Fragment {
         View view = inflater.inflate(R.layout.fragment_crime_list, container, false);
 
         mCrimeRecyclerView = (RecyclerView) view.findViewById(R.id.crime_recycler_view);
+        mNoCrimeView = view.findViewById(R.id.fragment_list_no_crime_layout);
+        mAddCrimeButton = (Button) view.findViewById(R.id.fragment_list_button_add_crime);
+
+        mAddCrimeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                addCrime();
+            }
+        });
         mCrimeRecyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
 
         if (savedInstanceState != null)
@@ -64,6 +78,14 @@ public class CrimeListFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        boolean empty = CrimeLab.get(getActivity()).getCrimes().isEmpty();
+        mNoCrimeView.setVisibility(View.GONE);
+        mCrimeRecyclerView.setVisibility(View.GONE);
+        if (empty) {
+            mNoCrimeView.setVisibility(View.VISIBLE);
+        } else {
+            mCrimeRecyclerView.setVisibility(View.VISIBLE);
+        }
         updateUI();
     }
 
@@ -79,10 +101,7 @@ public class CrimeListFragment extends Fragment {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.menu_item_new_crime:
-                Crime crime = new Crime();
-                CrimeLab.get(getActivity()).addCrime(crime);
-                Intent intent = CrimePagerActivity.newIntent(getActivity(), crime.getId());
-                startActivity(intent);
+                addCrime();
                 return true;
             case R.id.menu_item_show_subtitle:
                 mSubtitleVisible = !mSubtitleVisible;
@@ -94,10 +113,17 @@ public class CrimeListFragment extends Fragment {
         }
     }
 
+    private void addCrime() {
+        Crime crime = new Crime();
+        CrimeLab.get(getActivity()).addCrime(crime);
+        Intent intent = CrimePagerActivity.newIntent(getActivity(), crime.getId());
+        startActivity(intent);
+    }
+
     private void updateSubtitle() {
         CrimeLab crimeLab = CrimeLab.get(getActivity());
         int crimeCount = crimeLab.getCrimes().size();
-        String subtitle = mSubtitleVisible ? getString(R.string.subtitle_format, crimeCount) : "";
+        String subtitle = mSubtitleVisible ? getResources().getQuantityString(R.plurals.subtitle_format, crimeCount, crimeCount) : "";
 
         AppCompatActivity activity = (AppCompatActivity) getActivity();
         ActionBar supportActionBar = activity.getSupportActionBar();
@@ -112,6 +138,7 @@ public class CrimeListFragment extends Fragment {
             mAdapter = new CrimeAdapter(crimes);
             mCrimeRecyclerView.setAdapter(mAdapter);
         } else {
+            mAdapter.setCrimes(crimes);
             mAdapter.notifyDataSetChanged();
 //            mAdapter.notifyItemChanged(mPosition);
         }
@@ -140,7 +167,7 @@ public class CrimeListFragment extends Fragment {
         public void bindCrime(Crime crime) {
             mCrime = crime;
             mTitleTextView.setText(crime.getTitle());
-            mDateTextView.setText(crime.getDate().toString());
+            mDateTextView.setText(DateFormat.format("yyyy-MM-dd HH:mm:ss", mCrime.getDate()));
             mSolvedCheckBox.setChecked(crime.isSolved());
         }
 
@@ -181,6 +208,10 @@ public class CrimeListFragment extends Fragment {
         @Override
         public int getItemCount() {
             return mCrimes.size();
+        }
+
+        public void setCrimes(List<Crime> crimes) {
+            mCrimes = crimes;
         }
     }
 }
