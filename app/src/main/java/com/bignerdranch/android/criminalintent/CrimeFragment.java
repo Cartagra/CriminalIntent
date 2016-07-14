@@ -4,10 +4,15 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
+import android.support.v4.app.ShareCompat;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.format.DateFormat;
@@ -17,6 +22,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -36,12 +42,16 @@ public class CrimeFragment extends Fragment {
     private static final String DIALOG_TIME = "DialogTime";
     private static final int REQUEST_DATE = 0;
     private static final int REQUEST_TIME = 1;
+    private static final int REQUEST_CONTACT = 2;
 
     private Crime mCrime;
     private EditText mTitleEditText;
     private Button mDateButton;
     private Button mTimeButton;
     private CheckBox mSolvedCheckBox;
+    private Button mReportButton;
+    private Button mSuspectButton;
+    private Button mCallButton;
 
     public static CrimeFragment newInstance(UUID crimeId) {
         Bundle args = new Bundle();
@@ -107,6 +117,8 @@ public class CrimeFragment extends Fragment {
         mDateButton = (Button) v.findViewById(R.id.crime_date);
         mTimeButton = (Button) v.findViewById(R.id.crime_time);
         mSolvedCheckBox = (CheckBox) v.findViewById(R.id.crime_solved);
+        mReportButton = (Button) v.findViewById(R.id.crime_report);
+        mCallButton = (Button) v.findViewById(R.id.crime_call);
 
         mTitleEditText.addTextChangedListener(new TextWatcher() {
             @Override
@@ -151,9 +163,78 @@ public class CrimeFragment extends Fragment {
             }
         });
 
+        mReportButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+//                Intent i = new Intent(Intent.ACTION_SEND);
+//                i.setType("text/plain");
+//                i.putExtra(Intent.EXTRA_TEXT, getCrimeReport());
+//                i.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.crime_report_subject));
+//
+//                i = Intent.createChooser(i, getString(R.string.send_report));
+
+                Intent i = ShareCompat.IntentBuilder.from(getActivity())
+                        .setType("text/plain")
+                        .setText(getCrimeReport())
+                        .setSubject(getString(R.string.crime_report_subject))
+                        .setChooserTitle(getString(R.string.send_report))
+                        .createChooserIntent();
+
+
+                startActivity(i);
+            }
+        });
+
+        mCallButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String[] queryFields = new String[]{ContactsContract.Data.DATA1};
+                Cursor cursor = getActivity().getContentResolver().query(ContactsContract.Data.CONTENT_URI, queryFields, ContactsContract.Data.CONTACT_ID + "=?", new String[]{mCrime.getContactId()}, null);
+                try {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        Uri uri = Uri.parse("tel:" + cursor.getString(0));
+                        Intent intent = new Intent(Intent.ACTION_DIAL, uri);
+                        startActivity(intent);
+                    } else {
+                        new AlertDialog.Builder(getActivity())
+                                .setTitle("PhoneNumber NotFound")
+                                .setPositiveButton(android.R.string.ok, null).show();
+                    }
+                } finally {
+                    if (cursor != null) {
+                        cursor.close();
+                    }
+                }
+
+            }
+        });
+
+
         mTitleEditText.setText(mCrime.getTitle());
         mSolvedCheckBox.setChecked(mCrime.isSolved());
         updateData();
+
+        final Intent pickContact = new Intent(Intent.ACTION_PICK, ContactsContract.Contacts.CONTENT_URI);
+        mSuspectButton = (Button) v.findViewById(R.id.crime_suspect);
+        mSuspectButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivityForResult(pickContact, REQUEST_CONTACT);
+            }
+        });
+
+        if (mCrime.getSuspect() != null) {
+            mSuspectButton.setText(mCrime.getSuspect());
+            mCallButton.setText(getString(R.string.crime_call_text, mCrime.getSuspect()));
+        } else mCallButton.setEnabled(false);
+
+
+        PackageManager packageManager = getActivity().getPackageManager();
+
+        if (packageManager.resolveActivity(pickContact, PackageManager.MATCH_DEFAULT_ONLY) == null) {
+            mSuspectButton.setEnabled(false);
+        }
+
         return v;
     }
 
@@ -180,7 +261,36 @@ public class CrimeFragment extends Fragment {
             }
             mCrime.setDate(crimeCalendar.getTime());
             updateData();
+        } else if (requestCode == REQUEST_CONTACT) {
+            Uri contactUri = data.getData();
+            //指定要查询返回数据的字段名
+            String[] queryFields = new String[]{ContactsContract.Contacts.DISPLAY_NAME, ContactsContract.Contacts._ID};
+            Cursor c = getActivity().getContentResolver().query(contactUri, queryFields, null, null, null);
+            try {
+                if (c == null || c.getCount() == 0)
+                    return;
+
+                c.moveToFirst();
+                String suspect = c.getString(0);
+                mCrime.setContactId(c.getString(1));
+                mCrime.setSuspect(suspect);
+                mSuspectButton.setText(suspect);
+                mCallButton.setEnabled(true);
+                mCallButton.setText(getString(R.string.crime_call_text, suspect));
+            } finally {
+                if (c != null) c.close();
+            }
+
         }
+    }
+
+    private String getCrimeReport() {
+        String solvedString = getString(mCrime.isSolved() ? R.string.crime_report_solved : R.string.crime_report_unsolved);
+        String dateFormat = "EEE, MMM, dd";
+        String dateString = DateFormat.format(dateFormat, mCrime.getDate()).toString();
+        String suspect = mCrime.getSuspect() == null ? getString(R.string.crime_report_no_suspect) : getString(R.string.crime_report_suspect, mCrime.getSuspect());
+
+        return getString(R.string.crime_report, mCrime.getTitle(), dateString, solvedString, suspect);
     }
 
     private void updateData() {
