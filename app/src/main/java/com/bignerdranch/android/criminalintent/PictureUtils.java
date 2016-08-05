@@ -30,6 +30,14 @@ public class PictureUtils {
             }
         }
 
+        //图片超过4096x4096无法输出
+        //W/OpenGLRenderer: Bitmap too large to be uploaded into a texture (4128x2322, max=4096x4096)
+        if ((srcWidth > 4096 || srcHeight > 4096) && inSampleSize == 1) {
+            float max = srcWidth > srcHeight ? srcWidth : srcHeight;
+            inSampleSize = Double.valueOf(Math.ceil(max / 4096)).intValue();
+        }
+
+
         options = new BitmapFactory.Options();
         options.inSampleSize = inSampleSize;
 
